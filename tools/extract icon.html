@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perk Image Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Default cursor is crosshair, will be changed via JS */
+        canvas {
+            cursor: crosshair;
+        }
+        .custom-file-button input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 space-y-6">
+        <!-- Header Section -->
+        <div class="text-center">
+            <h1 class="text-3xl font-bold text-white">Perk Image Creator</h1>
+            <p class="text-gray-400 mt-2">Upload an image, select a square area, and save it as a 48x48 perk icon.</p>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+             <label class="custom-file-button w-full sm:w-auto cursor-pointer bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-300 text-center">
+                <span>📂 Load Image</span>
+                <input type="file" id="imageLoader" accept="image/*">
+            </label>
+            <button id="saveButton" class="w-full sm:w-auto bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled>
+                💾 Save 48x48 Perk
+            </button>
+        </div>
+
+        <!-- Canvas and Instructions -->
+        <div id="canvasContainer" class="bg-gray-900/50 border-2 border-dashed border-gray-600 rounded-lg p-4 min-h-[300px] flex items-center justify-center">
+            <p id="instructions" class="text-gray-500">Please load an image to begin.</p>
+            <canvas id="imageCanvas" class="hidden max-w-full h-auto rounded-md"></canvas>
+        </div>
+        
+        <!-- Preview Section -->
+        <div id="previewSection" class="hidden text-center">
+             <h2 class="text-lg font-semibold text-white mb-2">Live Preview (48x48)</h2>
+             <div class="mx-auto bg-gray-700 w-20 h-20 flex items-center justify-center rounded-lg p-2 border border-gray-600">
+                <canvas id="previewCanvas" width="48" height="48" class="rounded-sm shadow-lg" style="image-rendering: pixelated;"></canvas>
+             </div>
+        </div>
+
+    </div>
+
+    <!-- Modal for filename input -->
+    <div id="filenameModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-sm border border-gray-700">
+            <h2 class="text-xl font-semibold text-white mb-4">Save Perk Image</h2>
+            <p class="text-gray-400 mb-4">Please enter a name for your file.</p>
+            <input type="text" id="filenameInput" class="w-full bg-gray-900 text-white rounded-md p-2 border border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="perks_icon_...">
+            <div class="mt-6 flex justify-end gap-3">
+                <button id="cancelSave" class="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition">Cancel</button>
+                <button id="confirmSave" class="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition">Confirm & Save</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Element References ---
+        const imageLoader = document.getElementById('imageLoader');
+        const canvas = document.getElementById('imageCanvas');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const saveButton = document.getElementById('saveButton');
+        const instructions = document.getElementById('instructions');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const previewSection = document.getElementById('previewSection');
+        
+        // Modal elements
+        const filenameModal = document.getElementById('filenameModal');
+        const filenameInput = document.getElementById('filenameInput');
+        const cancelSave = document.getElementById('cancelSave');
+        const confirmSave = document.getElementById('confirmSave');
+
+        // --- State Variables ---
+        const ctx = canvas.getContext('2d');
+        const previewCtx = previewCanvas.getContext('2d');
+        let originalImage = null;
+        let cropRect = { startX: 0, startY: 0, x: 0, y: 0, size: 0 };
+        let imageLoaded = false;
+        
+        let isDragging = false; // For creating/resizing selection
+        let isMoving = false;   // For moving the selection
+        let moveStart = { x: 0, y: 0 }; // To store offset when moving
+
+        // --- Event Listeners ---
+        imageLoader.addEventListener('change', handleImage, false);
+        canvas.addEventListener('mousedown', startAction);
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('mouseup', endAction);
+        canvas.addEventListener('mouseleave', endAction);
+        
+        saveButton.addEventListener('click', showSaveModal);
+        cancelSave.addEventListener('click', hideSaveModal);
+        confirmSave.addEventListener('click', processSave);
+
+
+        // --- Image Handling ---
+        function handleImage(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                originalImage = new Image();
+                originalImage.onload = function() {
+                    const maxWidth = canvasContainer.clientWidth - 32;
+                    const maxHeight = window.innerHeight * 0.6;
+                    let ratio = Math.min(maxWidth / originalImage.width, maxHeight / originalImage.height);
+                    canvas.width = originalImage.width * ratio;
+                    canvas.height = originalImage.height * ratio;
+
+                    canvas.classList.remove('hidden');
+                    instructions.classList.add('hidden');
+                    
+                    imageLoaded = true;
+                    saveButton.disabled = true;
+                    cropRect.size = 0;
+                    previewSection.classList.add('hidden');
+                    
+                    redraw();
+                }
+                originalImage.src = event.target.result;
+            }
+            if(e.target.files[0]){
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        }
+
+        // --- Drawing and Cropping Logic ---
+        function redraw() {
+            if (!imageLoaded) return;
+            // 1. Always start by drawing the clean, original image scaled to the canvas.
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+
+            // 2. If a crop area has been defined, draw the selection highlight on top.
+            if (cropRect.size > 0) {
+                // *** NEW LOGIC: Highlight the inside of the selection instead of dimming the outside. ***
+                
+                // Draw a semi-transparent white overlay INSIDE the selection area.
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillRect(cropRect.x, cropRect.y, cropRect.size, cropRect.size);
+
+                // Draw a solid border around the selection to define its edges clearly.
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cropRect.x, cropRect.y, cropRect.size, cropRect.size);
+                
+                updatePreview();
+            }
+        }
+        
+        function updatePreview() {
+             if (!originalImage || cropRect.size <= 0) return;
+            previewSection.classList.remove('hidden');
+            previewCtx.clearRect(0, 0, 48, 48);
+            const scaleX = originalImage.width / canvas.width;
+            const sourceX = cropRect.x * scaleX;
+            const sourceY = cropRect.y * scaleX; // Use same scale for square
+            const sourceSize = cropRect.size * scaleX;
+            previewCtx.drawImage(originalImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 48, 48);
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function isMouseInSelection(pos) {
+            return cropRect.size > 0 &&
+                   pos.x >= cropRect.x && pos.x <= cropRect.x + cropRect.size &&
+                   pos.y >= cropRect.y && pos.y <= cropRect.y + cropRect.size;
+        }
+
+        function startAction(e) {
+            if (!imageLoaded) return;
+            const pos = getMousePos(e);
+
+            if (isMouseInSelection(pos)) {
+                isMoving = true;
+                isDragging = false;
+                moveStart.x = pos.x - cropRect.x;
+                moveStart.y = pos.y - cropRect.y;
+            } else {
+                isDragging = true;
+                isMoving = false;
+                cropRect.startX = pos.x;
+                cropRect.startY = pos.y;
+                cropRect.size = 0;
+            }
+        }
+
+        function handleMove(e) {
+            const pos = getMousePos(e);
+
+            if (isMouseInSelection(pos) && !isDragging) {
+                canvas.style.cursor = 'move';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+
+            if (isDragging) {
+                const dx = pos.x - cropRect.startX;
+                const dy = pos.y - cropRect.startY;
+                const size = Math.max(Math.abs(dx), Math.abs(dy));
+                const x = dx > 0 ? cropRect.startX : cropRect.startX - size;
+                const y = dy > 0 ? cropRect.startY : cropRect.startY - size;
+                cropRect.x = Math.max(0, Math.min(x, canvas.width - size));
+                cropRect.y = Math.max(0, Math.min(y, canvas.height - size));
+                cropRect.size = Math.min(size, canvas.width - cropRect.x, canvas.height - cropRect.y);
+                redraw();
+            } else if (isMoving) {
+                let newX = pos.x - moveStart.x;
+                let newY = pos.y - moveStart.y;
+                cropRect.x = Math.max(0, Math.min(newX, canvas.width - cropRect.size));
+                cropRect.y = Math.max(0, Math.min(newY, canvas.height - cropRect.size));
+                redraw();
+            }
+        }
+
+        function endAction() {
+            if (isDragging && cropRect.size > 10) {
+                saveButton.disabled = false;
+            }
+            isDragging = false;
+            isMoving = false;
+        }
+
+        // --- Saving Logic & Modal Control ---
+        function showSaveModal() {
+            if (saveButton.disabled) return;
+            filenameInput.value = "perks_image_";
+            filenameModal.classList.remove('hidden');
+            filenameInput.focus();
+        }
+
+        function hideSaveModal() {
+            filenameModal.classList.add('hidden');
+        }
+        
+        function processSave() {
+            const filename = filenameInput.value;
+            if (!filename) {
+                filenameInput.classList.add('border-red-500');
+                setTimeout(() => {
+                    filenameInput.classList.remove('border-red-500');
+                }, 2000);
+                return;
+            }
+            hideSaveModal();
+            saveCroppedImage(filename);
+        }
+
+        function saveCroppedImage(filename) {
+            if (!originalImage || cropRect.size <= 0) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 48;
+            tempCanvas.height = 48;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            const scaleX = originalImage.width / canvas.width;
+            const sourceX = cropRect.x * scaleX;
+            const sourceY = cropRect.y * scaleX;
+            const sourceSize = cropRect.size * scaleX; 
+            
+            tempCtx.drawImage(originalImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 48, 48);
+
+            const link = document.createElement('a');
+            link.download = filename.endsWith('.png') ? filename : `${filename}.png`;
+            link.href = tempCanvas.toDataURL("image/png");
+            link.click();
+        }
+    </script>
+</body>
+</html>

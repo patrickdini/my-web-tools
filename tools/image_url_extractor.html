@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for drag-and-drop and UI elements */
+        .image-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .image-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .image-card.selected {
+            border-color: #3b82f6; /* blue-500 */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+        }
+        .image-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+        .image-card .delete-btn {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .image-card:hover .delete-btn {
+            opacity: 1;
+        }
+        .drop-zone {
+            border: 2px dashed #9ca3af; /* gray-400 */
+            background-color: #f9fafb; /* gray-50 */
+            color: #6b7280; /* gray-500 */
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Image Extractor Pro</h1>
+            <p class="text-gray-600 mt-2">Enter one or more website URLs (separated by spaces) to extract images.</p>
+        </header>
+
+        <!-- URL Input Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <div class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="urlInput" placeholder="https://example.com https://another.com" class="flex-grow p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                <button id="fetchBtn" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-md hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center">
+                    <svg id="fetchIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <div id="loader" class="loader h-5 w-5 rounded-full border-4 border-gray-200 mr-2 hidden"></div>
+                    <span id="fetchBtnText">Fetch Images</span>
+                </button>
+            </div>
+            <div id="messageArea" class="mt-4 text-sm"></div>
+        </div>
+
+        <!-- Image Gallery Section -->
+        <div id="galleryContainer" class="bg-white p-6 rounded-lg shadow-md min-h-[200px]">
+            <div id="imageGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                <div id="dropZone" class="drop-zone col-span-full flex items-center justify-center h-48 rounded-md text-center p-4">
+                    Images will appear here once fetched.
+                </div>
+            </div>
+             <div id="controls" class="mt-6 pt-6 border-t border-gray-200 flex flex-col sm:flex-row gap-4 justify-between items-center hidden">
+                <div class="flex gap-2 flex-wrap">
+                    <button id="selectAllBtn" class="bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md hover:bg-gray-300 transition">Select All</button>
+                    <button id="deselectAllBtn" class="bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md hover:bg-gray-300 transition">Deselect All</button>
+                    <button id="removeSelectedBtn" class="bg-red-500 text-white font-medium py-2 px-4 rounded-md hover:bg-red-600 transition">Remove Selected</button>
+                </div>
+                <button id="getUrlsBtn" class="bg-green-600 text-white font-bold py-3 px-6 rounded-md hover:bg-green-700 transition w-full sm:w-auto mt-4 sm:mt-0">
+                    Get Image URLs
+                </button>
+            </div>
+        </div>
+
+        <!-- URL Output Section -->
+        <div id="outputContainer" class="mt-8 hidden">
+            <h2 class="text-2xl font-bold mb-4">Extracted Image URLs</h2>
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <textarea id="urlOutput" readonly class="w-full h-48 p-3 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+                <button id="copyBtn" class="mt-4 bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition">Copy to Clipboard</button>
+                <span id="copyMessage" class="ml-4 text-green-600 font-medium"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const urlInput = document.getElementById('urlInput');
+            const fetchBtn = document.getElementById('fetchBtn');
+            const fetchBtnText = document.getElementById('fetchBtnText');
+            const loader = document.getElementById('loader');
+            const fetchIcon = document.getElementById('fetchIcon');
+            const messageArea = document.getElementById('messageArea');
+            const imageGrid = document.getElementById('imageGrid');
+            const dropZone = document.getElementById('dropZone');
+            const controls = document.getElementById('controls');
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const deselectAllBtn = document.getElementById('deselectAllBtn');
+            const removeSelectedBtn = document.getElementById('removeSelectedBtn');
+            const getUrlsBtn = document.getElementById('getUrlsBtn');
+            const outputContainer = document.getElementById('outputContainer');
+            const urlOutput = document.getElementById('urlOutput');
+            const copyBtn = document.getElementById('copyBtn');
+            const copyMessage = document.getElementById('copyMessage');
+
+            let draggedItem = null;
+
+            // --- Event Listeners ---
+
+            fetchBtn.addEventListener('click', handleFetchImages);
+            urlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleFetchImages();
+                }
+            });
+
+            selectAllBtn.addEventListener('click', () => toggleSelection(true));
+            deselectAllBtn.addEventListener('click', () => toggleSelection(false));
+            removeSelectedBtn.addEventListener('click', removeSelectedImages);
+            getUrlsBtn.addEventListener('click', generateImageUrls);
+            copyBtn.addEventListener('click', copyUrlsToClipboard);
+
+            // --- Core Functions ---
+
+            /**
+             * UPDATED: This function now handles multiple URLs separated by spaces.
+             */
+            async function handleFetchImages() {
+                // Split input by whitespace and filter for valid URLs
+                const urls = urlInput.value.trim().split(/\s+/).filter(isValidUrl);
+
+                if (urls.length === 0) {
+                    showMessage('Please enter at least one valid URL.', 'error');
+                    return;
+                }
+
+                setLoadingState(true);
+                clearPreviousResults();
+                showMessage(`Fetching from ${urls.length} URL(s)...`, 'info');
+
+                const allImageUrls = new Set();
+                let successfulFetches = 0;
+                let failedFetches = 0;
+
+                // Create a promise for each URL fetch
+                const fetchPromises = urls.map(async (url) => {
+                    try {
+                        const proxyUrl = `https://cors.eu.org/${url}`;
+                        const response = await fetch(proxyUrl);
+                        if (!response.ok) {
+                            throw new Error(`Request failed with status: ${response.status}`);
+                        }
+                        const html = await response.text();
+                        const imageUrls = await parseHtmlForImages(html, url);
+                        // Add found images to the main set
+                        imageUrls.forEach(imgUrl => allImageUrls.add(imgUrl));
+                        successfulFetches++;
+                    } catch (error) {
+                        console.error(`Failed to fetch ${url}:`, error);
+                        failedFetches++;
+                    }
+                });
+
+                // Wait for all fetches to complete
+                await Promise.all(fetchPromises);
+
+                if (allImageUrls.size === 0) {
+                    let finalMessage = 'No images found across the provided URLs.';
+                    if (failedFetches > 0) {
+                        finalMessage += ` (${failedFetches} URL(s) could not be fetched).`
+                    }
+                    showMessage(finalMessage, 'warning');
+                    dropZone.classList.remove('hidden');
+                    dropZone.textContent = 'No images found from the provided URL(s).';
+                } else {
+                    let successMessage = `Found ${allImageUrls.size} unique images from ${successfulFetches} URL(s).`;
+                    if (failedFetches > 0) {
+                        successMessage += ` Failed to fetch ${failedFetches} URL(s).`;
+                    }
+                    showMessage(successMessage, 'success');
+                    displayImages(allImageUrls);
+                    controls.classList.remove('hidden');
+                    dropZone.classList.add('hidden');
+                }
+
+                setLoadingState(false);
+            }
+            
+            function parseHtmlForImages(html, baseUrl) {
+                const uniqueImageUrls = new Set();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                doc.querySelectorAll('img').forEach(img => {
+                    const sources = [img.getAttribute('src'), img.getAttribute('data-src'), img.getAttribute('data-lazy-src')];
+                    const srcset = img.getAttribute('srcset');
+                    if (srcset) {
+                        sources.push(...srcset.split(',').map(part => part.trim().split(' ')[0]));
+                    }
+                    sources.forEach(source => {
+                        if (source) uniqueImageUrls.add(source);
+                    });
+                });
+
+                doc.querySelectorAll('source').forEach(source => {
+                    const srcset = source.getAttribute('srcset');
+                     if (srcset) {
+                        uniqueImageUrls.add(srcset.split(' ')[0]);
+                    }
+                });
+
+                const urlRegex = /url\((['"]?)(.*?)\1\)/g;
+                let match;
+                while ((match = urlRegex.exec(html)) !== null) {
+                    uniqueImageUrls.add(match[2]);
+                }
+                
+                const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i;
+                const resolvedUrls = new Set();
+
+                uniqueImageUrls.forEach(url => {
+                    if (!url || url.startsWith('data:image')) return;
+                    try {
+                        const absoluteUrl = new URL(url, baseUrl).href;
+                        if (imageExtensions.test(absoluteUrl.split('?')[0])) {
+                           resolvedUrls.add(absoluteUrl);
+                        }
+                    } catch (e) {
+                        // console.warn(`Ignoring invalid URL: ${url}`);
+                    }
+                });
+
+                return Promise.resolve(resolvedUrls);
+            }
+
+
+            function displayImages(urls) {
+                imageGrid.innerHTML = ''; // Clear the grid
+                urls.forEach(url => {
+                    const card = document.createElement('div');
+                    card.className = 'image-card relative aspect-square border-4 border-transparent rounded-lg overflow-hidden cursor-pointer bg-gray-200';
+                    card.setAttribute('draggable', 'true');
+                    card.dataset.url = url;
+
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.className = 'w-full h-full object-cover';
+                    img.alt = 'Extracted Image';
+                    img.loading = 'lazy'; // Improve performance
+                    img.onerror = () => {
+                        card.innerHTML = `<div class="flex items-center justify-center h-full text-xs text-gray-500 p-2 text-center break-all">Failed to load</div>`;
+                        card.classList.add('pointer-events-none');
+                    };
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-btn absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-6 h-6 flex items-center justify-center text-lg leading-none hover:bg-opacity-75 z-10';
+                    deleteBtn.innerHTML = '&times;';
+                    deleteBtn.title = 'Remove Image';
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        card.remove();
+                        updateControlsVisibility();
+                    };
+
+                    card.appendChild(img);
+                    card.appendChild(deleteBtn);
+                    imageGrid.appendChild(card);
+
+                    card.addEventListener('click', () => card.classList.toggle('selected'));
+                    addDragDropListeners(card);
+                });
+            }
+            
+            function addDragDropListeners(item) {
+                item.addEventListener('dragstart', () => {
+                    draggedItem = item;
+                    setTimeout(() => item.classList.add('dragging'), 0);
+                });
+
+                item.addEventListener('dragend', () => {
+                    setTimeout(() => {
+                        if (draggedItem) {
+                           draggedItem.classList.remove('dragging');
+                        }
+                        draggedItem = null;
+                    }, 0);
+                });
+
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    const afterElement = getDragAfterElement(imageGrid, e.clientY);
+                    if (afterElement == null) {
+                        imageGrid.appendChild(draggedItem);
+                    } else {
+                        imageGrid.insertBefore(draggedItem, afterElement);
+                    }
+                });
+            }
+            
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('.image-card:not(.dragging)')];
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+
+            function toggleSelection(select) {
+                const images = document.querySelectorAll('.image-card');
+                images.forEach(img => {
+                    if (select) {
+                        img.classList.add('selected');
+                    } else {
+                        img.classList.remove('selected');
+                    }
+                });
+            }
+
+            function removeSelectedImages() {
+                const selectedImages = document.querySelectorAll('.image-card.selected');
+                if(selectedImages.length === 0) {
+                    showMessage('No images selected to remove.', 'warning');
+                    return;
+                }
+                selectedImages.forEach(img => img.remove());
+                showMessage(`Removed ${selectedImages.length} images.`, 'info');
+                updateControlsVisibility();
+            }
+            
+            function generateImageUrls() {
+                const images = document.querySelectorAll('.image-card');
+                if (images.length === 0) {
+                    showMessage('No images to get URLs from.', 'warning');
+                    outputContainer.classList.add('hidden');
+                    return;
+                }
+                const urls = Array.from(images).map(card => card.dataset.url);
+                urlOutput.value = JSON.stringify(urls, null, 2);
+                outputContainer.classList.remove('hidden');
+                urlOutput.scrollTop = 0;
+                showMessage(`Extracted ${urls.length} URLs.`, 'success');
+            }
+            
+            function copyUrlsToClipboard() {
+                if (!urlOutput.value) return;
+                fallbackCopyTextToClipboard(urlOutput.value);
+            }
+
+            function fallbackCopyTextToClipboard(text) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showCopyMessage('Copied!');
+                } catch (err) {
+                    console.error('Fallback copy failed:', err);
+                    showCopyMessage('Copy failed!', true);
+                }
+                document.body.removeChild(textArea);
+            }
+
+            // --- UI Helper Functions ---
+
+            function setLoadingState(isLoading) {
+                if (isLoading) {
+                    fetchBtn.disabled = true;
+                    loader.classList.remove('hidden');
+                    fetchIcon.classList.add('hidden');
+                    fetchBtnText.textContent = 'Fetching...';
+                } else {
+                    fetchBtn.disabled = false;
+                    loader.classList.add('hidden');
+                    fetchIcon.classList.remove('hidden');
+                    fetchBtnText.textContent = 'Fetch Images';
+                }
+            }
+
+            function showMessage(text, type = 'info') {
+                const colorClasses = {
+                    info: 'text-blue-700 bg-blue-100',
+                    success: 'text-green-700 bg-green-100',
+                    warning: 'text-yellow-700 bg-yellow-100',
+                    error: 'text-red-700 bg-red-100',
+                };
+                messageArea.className = `mt-4 text-sm p-3 rounded-md ${colorClasses[type] || colorClasses['info']}`;
+                messageArea.textContent = text;
+            }
+            
+            function showCopyMessage(text, isError = false) {
+                copyMessage.textContent = text;
+                copyMessage.className = `ml-4 font-medium ${isError ? 'text-red-600' : 'text-green-600'}`;
+                setTimeout(() => {
+                    copyMessage.textContent = '';
+                }, 2000);
+            }
+
+            function clearPreviousResults() {
+                imageGrid.innerHTML = '';
+                dropZone.classList.remove('hidden');
+                dropZone.textContent = 'Images will appear here once fetched.';
+                controls.classList.add('hidden');
+                outputContainer.classList.add('hidden');
+                urlOutput.value = '';
+                messageArea.textContent = '';
+                messageArea.className = 'mt-4 text-sm';
+            }
+
+            function isValidUrl(string) {
+                try {
+                    const url = new URL(string);
+                    return url.protocol === "http:" || url.protocol === "https:";
+                } catch (_) {
+                    return false;
+                }
+            }
+            
+            function updateControlsVisibility() {
+                const imageCount = document.querySelectorAll('.image-card').length;
+                if (imageCount === 0) {
+                    controls.classList.add('hidden');
+                    dropZone.classList.remove('hidden');
+                    dropZone.textContent = 'All images have been removed.';
+                } else {
+                    controls.classList.remove('hidden');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

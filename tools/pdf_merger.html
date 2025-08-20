@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Page Collator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f9;
+            color: #333;
+        }
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .container {
+            border: 2px dashed #bdc3c7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            min-height: 200px;
+            background-color: #ffffff;
+            transition: background-color 0.2s ease;
+        }
+        .container.drag-over {
+            background-color: #eaf5ff;
+            border-color: #3498db;
+        }
+        .page-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .page-thumbnail {
+            width: 100px;
+            height: 141px; /* Maintain A4 aspect ratio */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            position: relative;
+            background-color: #e0e0e0;
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+            overflow: hidden;
+        }
+        .page-thumbnail:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: scale(1.05);
+        }
+        .page-thumbnail .preview-area {
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .page-thumbnail canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .page-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 10px;
+            text-align: center;
+            padding: 2px 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 10;
+        }
+        .page-thumbnail:hover .remove-btn {
+            opacity: 1;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        button, .file-input-label {
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .file-input-label {
+            background-color: #3498db;
+            color: white;
+            display: inline-block;
+        }
+        #create-pdf-btn {
+            background-color: #2ecc71;
+            color: white;
+            margin-left: 10px;
+        }
+        #create-pdf-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        #status {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+            min-height: 20px;
+        }
+        #status.error {
+            color: #e74c3c;
+        }
+        #status.success {
+            color: #2ecc71;
+        }
+        .placeholder {
+            width: 100%;
+            text-align: center;
+            color: #95a5a6;
+            margin-top: 80px;
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+        /* Modal for Preview */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.85);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <h1>PDF Page Collator</h1>
+
+        <div class="controls">
+            <label for="pdf-upload" class="file-input-label">1. Upload PDF Files</label>
+            <input type="file" id="pdf-upload" multiple accept=".pdf" style="display: none;">
+            <button id="create-pdf-btn" disabled>3. Create New PDF</button>
+        </div>
+
+        <p style="text-align:center;">Click a page to preview. Drag from Source to Selected. Click ❌ to remove a page.</p>
+
+        <h2>Source Pages</h2>
+        <div id="source-pages-container" class="container">
+            <div class="page-grid" id="source-grid">
+                <div class="placeholder">Upload PDFs to see page thumbnails here.</div>
+            </div>
+        </div>
+
+        <h2>Selected Pages</h2>
+        <div id="selected-pages-container" class="container">
+            <div class="page-grid" id="selected-grid">
+                <div class="placeholder">Drag & drop pages here to build your new PDF.</div>
+            </div>
+        </div>
+        
+        <div id="status"></div>
+    </main>
+
+    <div id="preview-modal" class="modal">
+        <span class="close-btn">&times;</span>
+        <canvas id="preview-canvas" class="modal-content"></canvas>
+    </div>
+    
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js`;
+
+        const fileInput = document.getElementById('pdf-upload');
+        const sourceGrid = document.getElementById('source-grid');
+        const selectedGrid = document.getElementById('selected-grid');
+        const createPdfBtn = document.getElementById('create-pdf-btn');
+        const statusDiv = document.getElementById('status');
+        const fileInputLabel = document.querySelector('.file-input-label');
+        const previewModal = document.getElementById('preview-modal');
+        const previewCanvas = document.getElementById('preview-canvas');
+        const closeModalBtn = document.querySelector('.close-btn');
+
+        let loadedPdfs = []; // Stores pdf-lib docs for merging
+        let loadedPdfJsDocs = []; // Stores pdf.js docs for rendering previews
+        let draggedElement = null;
+
+        // --- 1. File Upload and Thumbnail Generation ---
+        fileInput.addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (files.length === 0) return;
+            
+            statusDiv.textContent = 'Processing files... Please wait.';
+            statusDiv.className = '';
+            fileInput.disabled = true;
+            fileInputLabel.style.backgroundColor = '#95a5a6';
+            
+            if (sourceGrid.querySelector('.placeholder')) {
+                sourceGrid.innerHTML = '';
+            }
+            
+            try {
+                for (const file of files) {
+                    const arrayBuffer = await file.arrayBuffer();
+
+                    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                    const pdfIndex = loadedPdfs.push(pdfDoc) - 1;
+
+                    const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+                    loadedPdfJsDocs.push(pdfJsDoc);
+
+                    for (let pageNum = 1; pageNum <= pdfJsDoc.numPages; pageNum++) {
+                        // Create the thumbnail structure
+                        const thumbnail = document.createElement('div');
+                        thumbnail.className = 'page-thumbnail';
+                        thumbnail.draggable = true;
+                        thumbnail.dataset.pdfIndex = pdfIndex;
+                        thumbnail.dataset.pageIndex = pageNum - 1;
+                        thumbnail.title = `${file.name} (Page ${pageNum}) - Click to preview`;
+                        
+                        // This div will capture clicks for the preview
+                        const previewArea = document.createElement('div');
+                        previewArea.className = 'preview-area';
+
+                        const canvas = document.createElement('canvas');
+                        const label = document.createElement('div');
+                        label.className = 'page-label';
+                        label.textContent = `${file.name.substring(0, 10)}... (p${pageNum})`;
+                        
+                        // This span is the new, clickable remove button
+                        const removeBtn = document.createElement('span');
+                        removeBtn.className = 'remove-btn';
+                        removeBtn.innerHTML = '&times;';
+
+                        previewArea.appendChild(canvas);
+                        thumbnail.appendChild(previewArea);
+                        thumbnail.appendChild(label);
+                        thumbnail.appendChild(removeBtn);
+                        sourceGrid.appendChild(thumbnail);
+
+                        // Render thumbnail
+                        const page = await pdfJsDoc.getPage(pageNum);
+                        const viewport = page.getViewport({ scale: 0.5 });
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport });
+                    }
+                }
+                statusDiv.textContent = 'Files loaded. You can upload more or start selecting pages.';
+                statusDiv.className = 'success';
+            } catch (error) {
+                console.error("Error processing PDF:", error);
+                statusDiv.textContent = `Error: Could not process file. It may be corrupted or password-protected.`;
+                statusDiv.className = 'error';
+            } finally {
+                fileInput.disabled = false;
+                fileInputLabel.style.backgroundColor = '#3498db';
+                fileInput.value = '';
+            }
+        });
+        
+        // --- 2. Main Event Delegation for Clicks (Preview and Delete) ---
+        document.addEventListener('click', (e) => {
+            // Handle page removal
+            if (e.target.classList.contains('remove-btn')) {
+                e.target.closest('.page-thumbnail').remove();
+                updateCreateButtonState();
+                return; // Stop further processing
+            }
+            // Handle page preview
+            if (e.target.closest('.preview-area')) {
+                const thumbnail = e.target.closest('.page-thumbnail');
+                const { pdfIndex, pageIndex } = thumbnail.dataset;
+                showPreview(parseInt(pdfIndex), parseInt(pageIndex));
+            }
+        });
+
+        // --- 3. Drag and Drop Logic ---
+        document.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('page-thumbnail')) {
+                draggedElement = e.target;
+                setTimeout(() => e.target.classList.add('dragging'), 0);
+            }
+        });
+        document.addEventListener('dragend', () => {
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+                draggedElement = null;
+            }
+        });
+        selectedGrid.parentElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            selectedGrid.parentElement.classList.add('drag-over');
+        });
+        selectedGrid.parentElement.addEventListener('dragleave', () => {
+             selectedGrid.parentElement.classList.remove('drag-over');
+        });
+        selectedGrid.parentElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            selectedGrid.parentElement.classList.remove('drag-over');
+            if (!draggedElement) return;
+
+            const nodeToDrop = draggedElement.parentElement === sourceGrid 
+                ? draggedElement.cloneNode(true) 
+                : draggedElement;
+
+            const afterElement = getDragAfterElement(selectedGrid, e.clientY);
+            if (afterElement == null) {
+                selectedGrid.appendChild(nodeToDrop);
+            } else {
+                selectedGrid.insertBefore(nodeToDrop, afterElement);
+            }
+            
+            updateCreateButtonState();
+        });
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.page-thumbnail:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function updateCreateButtonState() {
+            const hasPages = selectedGrid.querySelector('.page-thumbnail');
+            createPdfBtn.disabled = !hasPages;
+
+            const placeholder = selectedGrid.querySelector('.placeholder');
+            if (placeholder) placeholder.style.display = hasPages ? 'none' : 'block';
+        }
+
+        // --- 4. Preview Modal Logic ---
+        async function showPreview(pdfIndex, pageIndex) {
+            try {
+                const doc = loadedPdfJsDocs[pdfIndex];
+                const page = await doc.getPage(pageIndex + 1); // pdf.js is 1-based
+                
+                const scale = Math.min(
+                    (window.innerWidth * 0.9) / page.getViewport({ scale: 1 }).width,
+                    (window.innerHeight * 0.9) / page.getViewport({ scale: 1 }).height
+                );
+                const viewport = page.getViewport({ scale });
+                
+                const context = previewCanvas.getContext('2d');
+                previewCanvas.height = viewport.height;
+                previewCanvas.width = viewport.width;
+
+                await page.render({ canvasContext: context, viewport }).promise;
+                previewModal.style.display = 'flex';
+            } catch (error) {
+                console.error("Failed to render preview:", error);
+                statusDiv.textContent = "Could not render page preview.";
+                statusDiv.className = 'error';
+            }
+        }
+        closeModalBtn.onclick = () => previewModal.style.display = 'none';
+        previewModal.onclick = (e) => {
+            if (e.target === previewModal) previewModal.style.display = 'none';
+        };
+
+        // --- 5. PDF Creation Logic ---
+        createPdfBtn.addEventListener('click', async () => {
+            const selectedPages = Array.from(selectedGrid.querySelectorAll('.page-thumbnail'));
+            if (selectedPages.length === 0) return;
+
+            statusDiv.textContent = 'Creating new PDF... Please wait.';
+            statusDiv.className = '';
+            createPdfBtn.disabled = true;
+
+            try {
+                const newPdfDoc = await PDFLib.PDFDocument.create();
+                for (const pageElement of selectedPages) {
+                    const { pdfIndex, pageIndex } = pageElement.dataset;
+                    const sourcePdf = loadedPdfs[parseInt(pdfIndex, 10)];
+                    const [copiedPage] = await newPdfDoc.copyPages(sourcePdf, [parseInt(pageIndex, 10)]);
+                    newPdfDoc.addPage(copiedPage);
+                }
+
+                const pdfBytes = await newPdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `collated_${Date.now()}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                URL.revokeObjectURL(url);
+                a.remove();
+                
+                statusDiv.textContent = 'PDF created successfully!';
+                statusDiv.className = 'success';
+            } catch (error) {
+                console.error('Error creating PDF:', error);
+                statusDiv.textContent = 'An error occurred while creating the PDF.';
+                statusDiv.className = 'error';
+            } finally {
+                updateCreateButtonState();
+            }
+        });
+    </script>
+</body>
+</html>

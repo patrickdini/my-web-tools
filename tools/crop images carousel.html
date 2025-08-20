@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Optimizer Tool</title>
+    
+    <!-- Cropper.js CSS from a CDN -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #1c1e21;
+            margin-bottom: 25px;
+        }
+        .section {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 20px;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .upload-area {
+            text-align: center;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .upload-label {
+            display: inline-block;
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .upload-label:hover {
+            background-color: #0056b3;
+        }
+        #cropping-area {
+            display: none; /* Hidden by default */
+        }
+        #image-container {
+            max-width: 100%;
+            margin-top: 20px;
+        }
+        #source-image {
+            display: block;
+            max-width: 100%;
+        }
+        .controls, .process-button-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .aspect-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+        .aspect-btn:hover {
+            background-color: #5a6268;
+        }
+        #process-btn {
+            background-color: #28a745;
+            color: white;
+            font-weight: bold;
+        }
+        #process-btn:hover {
+            background-color: #218838;
+        }
+        #results-area {
+            margin-top: 20px;
+        }
+        #results-area h3 {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        #download-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            text-align: center;
+        }
+        #download-links a {
+            display: block;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #007bff;
+            font-weight: 500;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        #download-links a:hover {
+            background-color: #e9ecef;
+            border-color: #ced4da;
+        }
+        #status {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 20px;
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Optimizer</h1>
+
+        <div class="section upload-area">
+            <h3>Step 1: Upload Your Image</h3>
+            <label for="image-upload" class="upload-label">Select Image</label>
+            <input type="file" id="image-upload" accept="image/*">
+        </div>
+
+        <div id="cropping-area" class="section">
+            <h3>Step 2: Crop Your Image</h3>
+            <div id="image-container">
+                <img id="source-image" alt="Source Image">
+            </div>
+            <div class="controls">
+                <button id="desktop-aspect-btn" class="aspect-btn">Set Desktop Crop (16:9)</button>
+                <button id="mobile-aspect-btn" class="aspect-btn">Set Mobile Crop (4:5)</button>
+            </div>
+            <div class="process-button-container">
+                 <button id="process-btn">Process & Generate Downloads</button>
+            </div>
+        </div>
+
+        <div id="results-area" class="section">
+            <h3>Step 3: Download Your Optimized Images</h3>
+            <div id="status"></div>
+            <div id="download-links"></div>
+        </div>
+    </div>
+
+    <!-- Hidden canvas for processing -->
+    <canvas id="processing-canvas" style="display:none;"></canvas>
+
+    <!-- Cropper.js script from a CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    
+    <script>
+        // DOM element references
+        const imageUpload = document.getElementById('image-upload');
+        const sourceImage = document.getElementById('source-image');
+        const croppingArea = document.getElementById('cropping-area');
+        const resultsArea = document.getElementById('results-area');
+        const downloadLinksContainer = document.getElementById('download-links');
+        const statusDiv = document.getElementById('status');
+        const processBtn = document.getElementById('process-btn');
+        const desktopAspectBtn = document.getElementById('desktop-aspect-btn');
+        const mobileAspectBtn = document.getElementById('mobile-aspect-btn');
+        const canvas = document.getElementById('processing-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let cropper = null;
+        const SIZE_LIMIT_KB = 300;
+
+        /**
+         * Handles the file input change event.
+         * Reads the selected file, displays it, and initializes the cropper.
+         */
+        imageUpload.addEventListener('change', (event) => {
+            const files = event.target.files;
+            if (files && files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    sourceImage.src = e.target.result;
+                    croppingArea.style.display = 'block';
+                    resultsArea.style.display = 'block';
+                    downloadLinksContainer.innerHTML = ''; // Clear previous results
+                    statusDiv.innerHTML = '';
+                    
+                    if (cropper) {
+                        cropper.destroy();
+                    }
+                    
+                    cropper = new Cropper(sourceImage, {
+                        viewMode: 1, // Restrict crop box to be within the canvas
+                        background: false,
+                        autoCropArea: 0.8,
+                        responsive: true,
+                    });
+                };
+                reader.readAsDataURL(files[0]);
+            }
+        });
+
+        /**
+         * Sets the cropper's aspect ratio.
+         */
+        desktopAspectBtn.addEventListener('click', () => {
+            if (cropper) {
+                cropper.setAspectRatio(16 / 9);
+            }
+        });
+        
+        mobileAspectBtn.addEventListener('click', () => {
+            if (cropper) {
+                cropper.setAspectRatio(4 / 5);
+            }
+        });
+        
+        /**
+         * Main function to start the image processing for all required formats.
+         */
+        processBtn.addEventListener('click', async () => {
+            if (!cropper) {
+                alert("Please upload an image first.");
+                return;
+            }
+
+            downloadLinksContainer.innerHTML = ''; // Clear previous links
+            statusDiv.textContent = 'Processing... Please wait.';
+
+            // Get the current crop data from the user's selection
+            const cropData = cropper.getData(true); // Get rounded data
+
+            // Define the targets to process
+            const targets = [
+                { name: 'Desktop', width: 1920, height: 1080, crop: cropData, aspectRatio: 16/9 },
+                { name: 'Mobile', width: 1080, height: 1350, crop: cropData, aspectRatio: 4/5 }
+            ];
+            
+            for (const target of targets) {
+                // Set the cropper aspect ratio and data for this specific target
+                cropper.setAspectRatio(target.aspectRatio);
+                cropper.setData(target.crop);
+                
+                const currentTargetCropData = cropper.getData(true);
+                
+                // Process for WebP
+                await processAndOptimize(currentTargetCropData, target.width, target.height, 'webp', `${target.name.toLowerCase()}`);
+                
+                // Process for JPEG
+                await processAndOptimize(currentTargetCropData, target.width, target.height, 'jpeg', `${target.name.toLowerCase()}`);
+            }
+
+            statusDiv.textContent = 'Processing complete!';
+        });
+
+        /**
+         * Draws the cropped image to canvas and initiates optimization.
+         * @param {object} cropData - The crop box data from Cropper.js.
+         * @param {number} targetWidth - The final width of the image.
+         * @param {number} targetHeight - The final height of the image.
+         * @param {string} format - The image format ('webp' or 'jpeg').
+         * @param {string} fileNamePrefix - The prefix for the download file name.
+         */
+        async function processAndOptimize(cropData, targetWidth, targetHeight, format, fileNamePrefix) {
+            // Set canvas dimensions
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            
+            // Draw the cropped and resized image onto the canvas
+            ctx.drawImage(
+                sourceImage,
+                cropData.x,
+                cropData.y,
+                cropData.width,
+                cropData.height,
+                0, 0,
+                targetWidth,
+                targetHeight
+            );
+
+            // Find the optimal quality to stay under the size limit
+            let quality = 0.9;
+            const mimeType = `image/${format}`;
+            
+            while (quality > 0.1) {
+                const blob = await getCanvasBlob(mimeType, quality);
+                if (blob.size / 1024 <= SIZE_LIMIT_KB) {
+                    createDownloadLink(blob, `${fileNamePrefix}-${targetWidth}x${targetHeight}.${format}`);
+                    return; // Exit loop once condition is met
+                }
+                quality -= 0.05; // Reduce quality and try again
+            }
+            
+            // If the loop finishes, it means even at lowest quality it's too big.
+            // Still provide the lowest quality version as a fallback.
+            const blob = await getCanvasBlob(mimeType, 0.1);
+            createDownloadLink(blob, `${fileNamePrefix}-${targetWidth}x${targetHeight}-oversized.${format}`);
+        }
+
+        /**
+         * Converts canvas content to a blob. Wrapped in a Promise for async/await.
+         * @param {string} mimeType - The MIME type of the image.
+         * @param {number} quality - The quality setting (0.0 to 1.0).
+         * @returns {Promise<Blob>} A promise that resolves with the image blob.
+         */
+        function getCanvasBlob(mimeType, quality) {
+            return new Promise(resolve => {
+                canvas.toBlob(resolve, mimeType, quality);
+            });
+        }
+        
+        /**
+         * Creates a downloadable link for a blob and adds it to the page.
+         * @param {Blob} blob - The image data blob.
+         * @param {string} fileName - The desired file name for the download.
+         */
+        function createDownloadLink(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            
+            const fileSize = (blob.size / 1024).toFixed(1);
+            a.textContent = `Download ${fileName} (${fileSize} KB)`;
+            
+            downloadLinksContainer.appendChild(a);
+        }
+
+    </script>
+</body>
+</html>
