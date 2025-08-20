@@ -1,9 +1,14 @@
-# .github/workflows/deploy.yml
 name: Build and Deploy
 
 on:
   push:
-    branches: [ "main" ] # Runs whenever you push to the main branch
+    branches: [ "main" ]
+
+# This ensures only one deployment runs at a time.
+# It will automatically cancel any older runs.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
