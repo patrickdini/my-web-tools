@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Combine Project Files</title>
-    <!-- Using Tailwind CSS for a clean, modern design -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Using Inter font for better readability */
@@ -25,7 +24,6 @@
             background-color: #4338ca;
         }
     </style>
-    <!-- JSZip library for handling .zip files -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
@@ -36,23 +34,19 @@
             <p class="text-gray-600 mt-2">Upload a <strong>.zip</strong> file or select multiple project files. The tool will combine them into a single downloadable text file.</p>
         </div>
         
-        <!-- File input area -->
         <div class="mb-4">
             <label for="fileInput" class="sr-only">Choose file</label>
             <input type="file" id="fileInput" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer border border-gray-300 rounded-lg p-2">
         </div>
         
-        <!-- Action button -->
         <button id="processBtn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed">
             Create Combined File
         </button>
         
-        <!-- Status display area -->
         <div id="status-container" class="mt-6">
              <pre id="status" class="bg-gray-50 text-gray-600 text-sm p-4 rounded-lg max-h-40 overflow-y-auto whitespace-pre-wrap break-words">Waiting for files...</pre>
         </div>
         
-        <!-- Download link, initially hidden -->
         <a id="downloadLink" href="#" download="combined_project_files.txt" class="hidden mt-4 w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 text-center">
             Download Combined File
         </a>
@@ -66,8 +60,6 @@
         const statusEl = document.getElementById('status');
         
         // --- Configuration ---
-        // List of common binary file extensions to identify unreadable files.
-        // This helps prevent the browser from freezing when trying to read large binary files as text.
         const BINARY_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'tif', 'tiff', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'exe', 'dll', 'so', 'dmg', 'iso', 'zip', 'rar', '7z', 'gz', 'tar', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'mkv'];
 
         // --- Event Listeners ---
@@ -87,22 +79,26 @@
             // --- UI Updates for Processing State ---
             processBtn.disabled = true;
             processBtn.textContent = 'Processing...';
-            downloadLink.classList.add('hidden'); // Use classList for better control
+            downloadLink.classList.add('hidden');
             updateStatus('Starting process...');
 
             try {
-                // Check if the user uploaded a single zip file or multiple individual files.
-                const isSingleZipFile = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
-                let outputContent = '';
-
-                if (isSingleZipFile) {
-                    updateStatus('Processing ZIP file...');
-                    outputContent = await processZipFile(files[0]);
-                } else {
-                    updateStatus('Processing individual files...');
-                    outputContent = await processIndividualFiles(files);
+                const outputParts = [];
+                // **NEW LOGIC**: Loop through each selected file.
+                for (const file of files) {
+                    if (file.name.toLowerCase().endsWith('.zip')) {
+                        // If it's a zip file, process it as such.
+                        updateStatus(`Processing ZIP file: ${file.name}...`);
+                        const zipContent = await processZipFile(file);
+                        outputParts.push(zipContent);
+                    } else {
+                        // Otherwise, process it as a single, individual file.
+                        const fileContent = await processSingleFile(file);
+                        outputParts.push(fileContent);
+                    }
                 }
                 
+                const outputContent = outputParts.join('');
                 createDownloadLink(outputContent);
                 updateStatus('✅ Success! Your file is ready for download.');
 
@@ -122,7 +118,10 @@
          * @returns {boolean} - True if the file extension is in the BINARY_EXTENSIONS list.
          */
         function isBinaryFile(filename) {
+            // We now exclude 'zip' from this check within the function's context
+            // because zips are handled separately. The main check happens in handleFileProcessing.
             const extension = filename.split('.').pop().toLowerCase();
+            if (extension === 'zip') return false; // Treat zip files as processable, not binary to be skipped.
             return BINARY_EXTENSIONS.includes(extension);
         }
 
@@ -137,16 +136,13 @@
             const outputParts = [];
             
             const promises = [];
-            // Iterate over each file within the zip archive.
             zip.forEach((relativePath, file) => {
-                // Skip directories to avoid processing them as files.
                 if (file.dir) {
                     return;
                 }
 
-                const fileHeader = `//----------//\n// File: ${relativePath}\n//----------//\n\n`;
+                const fileHeader = `//----------//\n// File: ${zipFile.name} -> ${relativePath}\n//----------//\n\n`;
                 
-                // Create a promise for each file to handle asynchronous reading in parallel.
                 const promise = (async () => {
                     if (isBinaryFile(relativePath)) {
                         updateStatus(`- Skipping binary file: ${relativePath}`);
@@ -157,7 +153,6 @@
                             const content = await file.async('string');
                             outputParts.push(`${fileHeader}${content}\n\n`);
                         } catch (e) {
-                            // Handle cases where a file inside the zip cannot be read as text.
                             updateStatus(`- Could not read as text: ${relativePath}`);
                             outputParts.push(`${fileHeader}[Unreadable file - content not included]\n\n`);
                         }
@@ -166,40 +161,35 @@
                 promises.push(promise);
             });
             
-            await Promise.all(promises); // Wait for all files in the zip to be processed.
+            await Promise.all(promises);
             return outputParts.join('');
         }
 
         /**
-         * Processes a list of individual files selected by the user.
-         * @param {FileList} fileList - The list of files from the input element.
-         * @returns {Promise<string>} - A promise that resolves with the combined content string.
+         * **NEW FUNCTION**: Processes a single individual file.
+         * This logic was extracted from the old `processIndividualFiles` function.
+         * @param {File} file - The file to process.
+         * @returns {Promise<string>} - A promise that resolves with the formatted content string for one file.
          */
-        async function processIndividualFiles(fileList) {
-            const outputParts = [];
+        async function processSingleFile(file) {
+            const filePath = file.webkitRelativePath || file.name;
+            const fileHeader = `//----------//\n// File: ${filePath}\n//----------//\n\n`;
             
-            for (const file of fileList) {
-                // webkitRelativePath is used to get the full path when a directory is uploaded.
-                const filePath = file.webkitRelativePath || file.name;
-                const fileHeader = `//----------//\n// File: ${filePath}\n//----------//\n\n`;
-                
-                if (isBinaryFile(filePath)) {
-                    updateStatus(`- Skipping binary file: ${filePath}`);
-                    outputParts.push(`${fileHeader}[Binary file - content not included]\n\n`);
-                } else {
-                    try {
-                        updateStatus(`- Reading text file: ${filePath}`);
-                        const content = await file.text();
-                        outputParts.push(`${fileHeader}${content}\n\n`);
-                    } catch (e) {
-                        updateStatus(`- Could not read as text: ${filePath}`);
-                        outputParts.push(`${fileHeader}[Unreadable file - content not included]\n\n`);
-                    }
+            if (isBinaryFile(filePath)) {
+                updateStatus(`- Skipping binary file: ${filePath}`);
+                return `${fileHeader}[Binary file - content not included]\n\n`;
+            } else {
+                try {
+                    updateStatus(`- Reading text file: ${filePath}`);
+                    const content = await file.text();
+                    return `${fileHeader}${content}\n\n`;
+                } catch (e) {
+                    updateStatus(`- Could not read as text: ${filePath}`);
+                    return `${fileHeader}[Unreadable file - content not included]\n\n`;
                 }
             }
-            
-            return outputParts.join('');
         }
+
 
         /**
          * Creates a Blob from the combined content and generates a downloadable link.
@@ -209,13 +199,12 @@
             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             
-            // It's good practice to revoke the old object URL to free up memory.
             if (downloadLink.href && downloadLink.href.startsWith('blob:')) {
                 URL.revokeObjectURL(downloadLink.href);
             }
 
             downloadLink.href = url;
-            downloadLink.classList.remove('hidden'); // Show the download button
+            downloadLink.classList.remove('hidden');
         }
 
         /**
