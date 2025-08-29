@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kai, The Spice Table</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (xlsx) for parsing Excel files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Google Fonts: Inter & Playfair Display -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        /* Brand Colors */
+        :root {
+            --brand-bg: #0F3128; /* Dark Jade Green */
+            --brand-surface: #262626; /* Anthracite */
+            --brand-primary-accent: #AA7831; /* Gold */
+            --brand-secondary-accent: #A7684F; /* Copper */
+            --brand-text: #f3f4f6;
+            --brand-text-muted: #9ca3af;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--brand-bg);
+            color: var(--brand-text);
+        }
+        h1, h2, h3 {
+             font-family: 'Playfair Display', serif;
+        }
+        .chart-container {
+            position: relative;
+            height: 40vh;
+            width: 100%;
+        }
+        .file-input-label {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            background-color: var(--brand-secondary-accent);
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .file-input-label:hover {
+            opacity: 0.9;
+        }
+        .file-input {
+            display: none;
+        }
+        .kpi-value {
+            font-size: 1.875rem; /* text-3xl */
+            line-height: 2.25rem;
+        }
+        .kpi-subtext {
+            font-size: 0.875rem; /* text-sm */
+            line-height: 1.25rem;
+        }
+        .brand-surface { background-color: var(--brand-surface); }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-white">Kai, The Spice Table</h1>
+            <p class="text-gray-400 mt-2">Sales Analysis Dashboard</p>
+        </header>
+
+        <!-- File Upload Section -->
+        <div id="upload-section" class="w-full max-w-lg mx-auto brand-surface p-8 rounded-xl shadow-lg text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <h2 class="mt-2 text-lg font-medium text-white">Upload your file</h2>
+            <p class="mt-1 text-sm text-gray-400 mb-4">Please upload an XLSX file to begin.</p>
+            <label for="xlsx-file" class="file-input-label">
+                <span>Select a file</span>
+            </label>
+            <input type="file" id="xlsx-file" class="file-input" accept=".xlsx, .xls">
+            <p id="file-name" class="text-sm text-gray-500 mt-3"></p>
+            <p id="loading-message" class="mt-4 hidden" style="color: var(--brand-primary-accent);">Processing your data...</p>
+        </div>
+
+        <!-- Dashboard Content - Hidden by default -->
+        <main id="dashboard-content" class="hidden">
+            <!-- Key Performance Indicators (KPIs) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
+                <!-- Revenue -->
+                <div class="brand-surface p-6 rounded-xl shadow-lg">
+                    <h3 class="text-sm font-medium text-gray-400">Avg. Daily Revenue</h3>
+                    <p id="total-revenue" class="kpi-value font-bold text-white mt-1">0M</p>
+                    <p class="kpi-subtext text-gray-400 mt-2 flex items-center">
+                        Last 7 days: 
+                        <span id="revenue-last-7-days" class="font-semibold ml-2">0M</span>
+                        <span id="revenue-comparison-icon" class="ml-1"></span>
+                    </p>
+                </div>
+                <!-- Profit -->
+                <div class="brand-surface p-6 rounded-xl shadow-lg">
+                    <h3 class="text-sm font-medium text-gray-400">Avg. Daily Profit</h3>
+                    <p id="total-profit" class="kpi-value font-bold mt-1" style="color: var(--brand-primary-accent);">0M</p>
+                    <p class="kpi-subtext text-gray-400 mt-2 flex items-center">
+                        Last 7 days: 
+                        <span id="profit-last-7-days" class="font-semibold ml-2">0M</span>
+                        <span id="profit-comparison-icon" class="ml-1"></span>
+                    </p>
+                </div>
+                <!-- Profit Margin -->
+                <div class="brand-surface p-6 rounded-xl shadow-lg">
+                    <h3 class="text-sm font-medium text-gray-400">Avg. Profit Margin</h3>
+                    <p id="profit-margin" class="kpi-value font-bold mt-1" style="color: var(--brand-primary-accent);">0%</p>
+                     <p class="kpi-subtext text-gray-400 mt-2 flex items-center">
+                        Last 7 days: 
+                        <span id="profit-margin-last-7-days" class="font-semibold ml-2">0%</span>
+                        <span id="profit-margin-comparison-icon" class="ml-1"></span>
+                    </p>
+                </div>
+                <!-- Customers -->
+                <div class="brand-surface p-6 rounded-xl shadow-lg">
+                    <h3 class="text-sm font-medium text-gray-400">Avg. Daily Customers</h3>
+                    <p id="total-customers" class="kpi-value font-bold text-white mt-1">0</p>
+                    <p class="kpi-subtext text-gray-400 mt-2 flex items-center">
+                        Last 7 days: 
+                        <span id="avg-customers-last-7-days" class="font-semibold ml-2">0</span>
+                        <span id="customers-comparison-icon" class="ml-1"></span>
+                    </p>
+                </div>
+                <!-- Receipts -->
+                <div class="brand-surface p-6 rounded-xl shadow-lg">
+                    <h3 class="text-sm font-medium text-gray-400">Avg. Daily Receipts</h3>
+                    <p id="total-receipts" class="kpi-value font-bold text-white mt-1">0</p>
+                     <p class="kpi-subtext text-gray-400 mt-2 flex items-center">
+                        Last 7 days:
+                        <span id="avg-receipts-last-7-days" class="font-semibold ml-2">0</span>
+                        <span id="receipts-comparison-icon" class="ml-1"></span>
+                    </p>
+                </div>
+                <!-- Average Receipt Value -->
+                <div class="brand-surface p-6 rounded-xl shadow-lg">
+                    <h3 class="text-sm font-medium text-gray-400">Average Receipt Value</h3>
+                    <p id="average-receipt" class="kpi-value font-bold text-white mt-1">0k</p>
+                    <p class="kpi-subtext text-gray-400 mt-2 flex items-center">
+                       Last 7 days: 
+                       <span id="avg-receipt-last-7-days" class="font-semibold ml-2">0k</span>
+                       <span id="avg-receipt-comparison-icon" class="ml-1"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 gap-8">
+                <div class="brand-surface p-6 rounded-xl shadow-lg"><h3 class="text-lg font-semibold text-white mb-4">Revenue</h3><div class="chart-container"><canvas id="revenueChart"></canvas></div></div>
+                <div class="brand-surface p-6 rounded-xl shadow-lg"><h3 class="text-lg font-semibold text-white mb-4">Profit</h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div>
+                <div class="brand-surface p-6 rounded-xl shadow-lg"><h3 class="text-lg font-semibold text-white mb-4">Profit Margin</h3><div class="chart-container"><canvas id="profitMarginChart"></canvas></div></div>
+                <div class="brand-surface p-6 rounded-xl shadow-lg"><h3 class="text-lg font-semibold text-white mb-4">Average Receipt</h3><div class="chart-container"><canvas id="averageReceiptChart"></canvas></div></div>
+                <div class="brand-surface p-6 rounded-xl shadow-lg"><h3 class="text-lg font-semibold text-white mb-4">Customers</h3><div class="chart-container"><canvas id="customersChart"></canvas></div></div>
+                <div class="brand-surface p-6 rounded-xl shadow-lg"><h3 class="text-lg font-semibold text-white mb-4">Receipts</h3><div class="chart-container"><canvas id="receiptsChart"></canvas></div></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let charts = {};
+        const fileInput = document.getElementById('xlsx-file');
+        const fileNameDisplay = document.getElementById('file-name');
+        const uploadSection = document.getElementById('upload-section');
+        const dashboardContent = document.getElementById('dashboard-content');
+        const loadingMessage = document.getElementById('loading-message');
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            fileNameDisplay.textContent = `Selected: ${file.name}`;
+            loadingMessage.classList.remove('hidden');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 1 });
+                    processData(jsonData);
+                } catch (error) {
+                    console.error("Error processing XLSX file:", error);
+                    alert("There was an error processing your file.");
+                    loadingMessage.classList.add('hidden');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function calculateRollingAverage(data, windowSize) {
+            const result = [];
+            for (let i = 0; i < data.length; i++) {
+                if (i < windowSize - 1) {
+                    result.push(null);
+                } else {
+                    const window = data.slice(i - windowSize + 1, i + 1);
+                    const sum = window.reduce((acc, val) => acc + val, 0);
+                    result.push(sum / windowSize);
+                }
+            }
+            return result;
+        }
+
+        function processData(data) {
+            const parseDate = (dateValue) => {
+                if (dateValue instanceof Date) return dateValue;
+                if (typeof dateValue === 'number') return new Date(Math.round((dateValue - 25569) * 864e5));
+                if (typeof dateValue === 'string') { const parsed = new Date(dateValue); if (!isNaN(parsed)) return parsed; }
+                return null;
+            };
+
+            const dateKey = Object.keys(data[0]).find(k => k.trim().toLowerCase() === 'date') || 'Date';
+            data.sort((a, b) => (parseDate(a[dateKey]) || 0) - (parseDate(b[dateKey]) || 0));
+            
+            let totalRevenue = 0, totalProfit = 0, totalCustomers = 0, totalReceipts = 0;
+            const labels = [], revenueData = [], profitData = [], customersData = [], receiptsData = [], profitMarginData = [], avgReceiptData = [];
+            const parseNum = (val) => parseFloat(String(val).replace(/,/g, '')) || 0;
+
+            for (const row of data) {
+                const rowDate = parseDate(row[dateKey]);
+                if (rowDate) {
+                    const revenue = parseNum(row.Revenue);
+                    const profit = parseNum(row.Profit);
+                    const customers = parseNum(row.Customers);
+                    const receipts = parseNum(row.Receipts);
+                    const avgReceipt = parseNum(row['Average receipt']);
+
+                    totalRevenue += revenue;
+                    totalProfit += profit;
+                    totalCustomers += customers;
+                    totalReceipts += receipts;
+
+                    labels.push(rowDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                    revenueData.push(revenue);
+                    profitData.push(profit);
+                    customersData.push(customers);
+                    receiptsData.push(receipts);
+                    profitMarginData.push(revenue > 0 ? (profit / revenue) * 100 : 0);
+                    avgReceiptData.push(avgReceipt);
+                }
+            }
+            
+            const numDays = labels.length;
+
+            const last7DaysStart = Math.max(0, numDays - 7);
+            const prev7DaysStart = Math.max(0, numDays - 14);
+            const prev7DaysEnd = last7DaysStart;
+            
+            const calculateMetrics = (start, end) => {
+                const daysInPeriod = end - start;
+                if (daysInPeriod <= 0) {
+                    return { revenue: 0, profit: 0, profitMargin: 0, avgCustomers: 0, avgReceipts: 0, avgReceiptValue: 0, revenuePerDay: 0, profitPerDay: 0 };
+                }
+
+                const revenueSlice = revenueData.slice(start, end);
+                const profitSlice = profitData.slice(start, end);
+                const customersSlice = customersData.slice(start, end);
+                const receiptsSlice = receiptsData.slice(start, end);
+                const avgReceiptSlice = avgReceiptData.slice(start, end);
+
+                const revenueSum = revenueSlice.reduce((a, b) => a + b, 0);
+                const profitSum = profitSlice.reduce((a, b) => a + b, 0);
+                const customersSum = customersSlice.reduce((a, b) => a + b, 0);
+                const receiptsSum = receiptsSlice.reduce((a, b) => a + b, 0);
+
+                return {
+                    revenue: revenueSum,
+                    profit: profitSum,
+                    profitMargin: revenueSum > 0 ? (profitSum / revenueSum) * 100 : 0,
+                    avgCustomers: customersSum / daysInPeriod,
+                    avgReceipts: receiptsSum / daysInPeriod,
+                    avgReceiptValue: avgReceiptSlice.length > 0 ? avgReceiptSlice.reduce((a,b) => a+b,0) / avgReceiptSlice.length : 0,
+                    revenuePerDay: revenueSum / daysInPeriod,
+                    profitPerDay: profitSum / daysInPeriod,
+                };
+            };
+            
+            const last7Metrics = calculateMetrics(last7DaysStart, numDays);
+            const prev7Metrics = calculateMetrics(prev7DaysStart, prev7DaysEnd);
+            
+            updateKPIs({ 
+                totalRevenue, totalProfit, totalCustomers, totalReceipts, numDays,
+                last7Metrics, prev7Metrics
+            });
+
+            const revenue7DayAvg = calculateRollingAverage(revenueData, 7);
+            const profit7DayAvg = calculateRollingAverage(profitData, 7);
+            const customers7DayAvg = calculateRollingAverage(customersData, 7);
+            const receipts7DayAvg = calculateRollingAverage(receiptsData, 7);
+            const profitMargin7DayAvg = calculateRollingAverage(profitMarginData, 7);
+            const avgReceipt7DayAvg = calculateRollingAverage(avgReceiptData, 7);
+
+            createCharts({ labels, revenueData, profitData, customersData, receiptsData, profitMarginData, avgReceiptData, revenue7DayAvg, profit7DayAvg, customers7DayAvg, receipts7DayAvg, profitMargin7DayAvg, avgReceipt7DayAvg });
+            
+            uploadSection.classList.add('hidden');
+            dashboardContent.classList.remove('hidden');
+            loadingMessage.classList.add('hidden');
+        }
+        
+        function updateKPIs({ totalRevenue, totalProfit, totalCustomers, totalReceipts, numDays, last7Metrics, prev7Metrics }) {
+            const formatToMillion = (val) => `${(val / 1000000).toFixed(1)}M`;
+            const formatToThousand = (val) => `${(val / 1000).toFixed(0)}k`;
+
+            // Calculate overall daily averages
+            const avgDailyRevenue = numDays > 0 ? totalRevenue / numDays : 0;
+            const avgDailyProfit = numDays > 0 ? totalProfit / numDays : 0;
+            const avgDailyCustomers = numDays > 0 ? totalCustomers / numDays : 0;
+            const avgDailyReceipts = numDays > 0 ? totalReceipts / numDays : 0;
+            const overallProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+            const overallAvgReceipt = totalReceipts > 0 ? totalRevenue / totalReceipts : 0;
+            
+            // Update main KPI display with daily averages
+            document.getElementById('total-revenue').textContent = formatToMillion(avgDailyRevenue);
+            document.getElementById('total-profit').textContent = formatToMillion(avgDailyProfit);
+            document.getElementById('profit-margin').textContent = `${overallProfitMargin.toFixed(1)}%`;
+            document.getElementById('total-customers').textContent = avgDailyCustomers.toFixed(1);
+            document.getElementById('total-receipts').textContent = avgDailyReceipts.toFixed(1);
+            document.getElementById('average-receipt').textContent = formatToThousand(overallAvgReceipt);
+
+            const setComparison = (currentValue, prevValue, valueEl, iconEl, isUpGood, formatter) => {
+                valueEl.textContent = formatter(currentValue);
+                let icon = '';
+                let colorClass = 'text-gray-400';
+                if (currentValue > prevValue) {
+                    colorClass = isUpGood ? 'text-green-400' : 'text-red-400';
+                    icon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>`;
+                } else if (currentValue < prevValue) {
+                    colorClass = isUpGood ? 'text-red-400' : 'text-green-400';
+                    icon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>`;
+                }
+                valueEl.className = `font-semibold ml-2 ${colorClass}`;
+                iconEl.innerHTML = icon;
+                iconEl.className = `ml-1 ${colorClass}`;
+            };
+
+            // Update sub-values (last 7 days trend)
+            setComparison(last7Metrics.revenuePerDay, prev7Metrics.revenuePerDay, document.getElementById('revenue-last-7-days'), document.getElementById('revenue-comparison-icon'), true, formatToMillion);
+            setComparison(last7Metrics.profitPerDay, prev7Metrics.profitPerDay, document.getElementById('profit-last-7-days'), document.getElementById('profit-comparison-icon'), true, formatToMillion);
+            setComparison(last7Metrics.profitMargin, prev7Metrics.profitMargin, document.getElementById('profit-margin-last-7-days'), document.getElementById('profit-margin-comparison-icon'), true, (v) => `${v.toFixed(1)}%`);
+            setComparison(last7Metrics.avgCustomers, prev7Metrics.avgCustomers, document.getElementById('avg-customers-last-7-days'), document.getElementById('customers-comparison-icon'), true, (v) => v.toFixed(1));
+            setComparison(last7Metrics.avgReceipts, prev7Metrics.avgReceipts, document.getElementById('avg-receipts-last-7-days'), document.getElementById('receipts-comparison-icon'), true, (v) => v.toFixed(1));
+            setComparison(last7Metrics.avgReceiptValue, prev7Metrics.avgReceiptValue, document.getElementById('avg-receipt-last-7-days'), document.getElementById('avg-receipt-comparison-icon'), true, formatToThousand);
+        }
+
+        function createCharts(chartData) {
+            Object.values(charts).forEach(chart => chart.destroy());
+            
+            const BRAND_COLORS = {
+                gold: '#AA7831', copper: '#A7684F', teal: '#14b8a6', indigo: '#6366f1',
+                pink: '#ec4899', purple: '#a855f7', red: '#ef4444'
+            };
+
+            const getCommonOptions = (yAxisLabel, yAxisFormatter) => ({
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#FFFFFF' } },
+                    tooltip: { callbacks: { label: (c) => `${c.dataset.label || ''}: ${yAxisFormatter ? yAxisFormatter(c.parsed.y) : c.parsed.y}` } }
+                },
+                scales: {
+                    x: { ticks: { color: '#FFFFFF' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                    y: {
+                        ticks: { color: '#FFFFFF', callback: yAxisFormatter ? (v) => yAxisFormatter(v) : (v) => v },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        title: { display: !!yAxisLabel, text: yAxisLabel, color: '#FFFFFF' }
+                    }
+                }
+            });
+
+            charts.revenue = new Chart(document.getElementById('revenueChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: chartData.labels, datasets: [
+                    { type: 'line', label: '7-Day Rolling Avg', data: chartData.revenue7DayAvg, borderColor: BRAND_COLORS.gold, fill: false, tension: 0.3, pointRadius: 2 },
+                    { type: 'bar', label: 'Daily Revenue', data: chartData.revenueData, backgroundColor: BRAND_COLORS.copper, borderRadius: 4 }
+                ]},
+                options: getCommonOptions('Million IDR', (v) => `${(v / 1000000).toFixed(1)}M`)
+            });
+            charts.profit = new Chart(document.getElementById('profitChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: chartData.labels, datasets: [
+                    { type: 'line', label: '7-Day Rolling Avg', data: chartData.profit7DayAvg, borderColor: BRAND_COLORS.gold, fill: false, tension: 0.3, pointRadius: 2 },
+                    { type: 'bar', label: 'Daily Profit', data: chartData.profitData, backgroundColor: BRAND_COLORS.copper, borderRadius: 4 }
+                ]},
+                options: getCommonOptions('IDR', (v) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v))
+            });
+            charts.profitMargin = new Chart(document.getElementById('profitMarginChart').getContext('2d'), {
+                type: 'line',
+                data: { labels: chartData.labels, datasets: [
+                    { type: 'line', label: '7-Day Rolling Avg', data: chartData.profitMargin7DayAvg, borderColor: BRAND_COLORS.gold, fill: false, tension: 0.3, pointRadius: 2 },
+                    { label: 'Daily Profit Margin', data: chartData.profitMarginData, borderColor: BRAND_COLORS.teal, backgroundColor: 'rgba(20, 184, 166, 0.1)', fill: true, tension: 0.4 },
+                    { label: 'Target (70%)', data: Array(chartData.labels.length).fill(70), borderColor: BRAND_COLORS.red, borderDash: [5, 5], fill: false, pointRadius: 0 }
+                ]},
+                options: getCommonOptions('%', (v) => `${v.toFixed(1)}%`)
+            });
+            charts.averageReceipt = new Chart(document.getElementById('averageReceiptChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: chartData.labels, datasets: [
+                     { type: 'line', label: '7-Day Rolling Avg', data: chartData.avgReceipt7DayAvg, borderColor: BRAND_COLORS.gold, fill: false, tension: 0.3, pointRadius: 2 },
+                     { type: 'bar', label: 'Daily Average Receipt', data: chartData.avgReceiptData, backgroundColor: BRAND_COLORS.pink, borderRadius: 4 },
+                     { type: 'line', label: 'Target (750k)', data: Array(chartData.labels.length).fill(750000), borderColor: BRAND_COLORS.red, borderDash: [5, 5], fill: false, pointRadius: 0 }
+                ]},
+                options: getCommonOptions('Thousand IDR', (v) => `${(v / 1000).toFixed(0)}k`)
+            });
+            charts.customers = new Chart(document.getElementById('customersChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: chartData.labels, datasets: [
+                    { type: 'line', label: '7-Day Rolling Avg', data: chartData.customers7DayAvg, borderColor: BRAND_COLORS.gold, fill: false, tension: 0.3, pointRadius: 2 },
+                    { type: 'bar', label: 'Daily Customers', data: chartData.customersData, backgroundColor: BRAND_COLORS.indigo, borderRadius: 4 }
+                ]},
+                options: getCommonOptions('Customers', (v) => v.toLocaleString())
+            });
+            charts.receipts = new Chart(document.getElementById('receiptsChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: chartData.labels, datasets: [
+                    { type: 'line', label: '7-Day Rolling Avg', data: chartData.receipts7DayAvg, borderColor: BRAND_COLORS.gold, fill: false, tension: 0.3, pointRadius: 2 },
+                    { type: 'bar', label: 'Daily Receipts', data: chartData.receiptsData, backgroundColor: BRAND_COLORS.purple, borderRadius: 4 }
+                ]},
+                options: getCommonOptions('Receipts', (v) => v.toLocaleString())
+            });
+        }
+    </script>
+</body>
+</html>
+
