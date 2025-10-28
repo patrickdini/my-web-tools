@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Villa Tokay Spa Daily Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0f3128;
+      --accent-gold: #aa7831;
+      --text-light: #ffffff;
+      --card-bg: #1a3f34;
+      --card-border: #264b40;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-light);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", "Roboto", sans-serif;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      width: 100%;
+    }
+
+    .left-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 260px;
+      flex: 1 1 300px;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text-light);
+      line-height: 1.3;
+    }
+
+    .title-block p {
+      margin: 0.25rem 0 0 0;
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.4;
+    }
+
+    .howto-block {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .howto-block .howto-title {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .howto-block ol {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .howto-block a {
+      color: var(--accent-gold);
+      text-decoration: underline;
+    }
+
+    /* Right side: upload + filters */
+    .controls-block {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      min-width: 260px;
+      flex: 0 1 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .controls-section-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-gold);
+    }
+
+    .upload-row,
+    .date-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    input[type="file"],
+    input[type="date"] {
+      color: var(--text-light);
+      font-size: 0.8rem;
+      background-color: #0f3128;
+      border-radius: 0.5rem;
+      border: 1px solid var(--card-border);
+      padding: 0.5rem;
+      cursor: pointer;
+    }
+
+    .small-hint {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.4;
+    }
+
+    /* Stats cards row */
+    .stats-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(min(180px,100%),1fr));
+    }
+
+    .stat-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 0.4rem;
+    }
+
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text-light);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .stat-hint {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.5);
+      margin-top: 0.25rem;
+      line-height: 1.3;
+    }
+
+    /* Chart cards */
+    .chart-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem 1.5rem;
+    }
+
+    .chart-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1rem;
+      gap: 0.5rem;
+    }
+
+    .chart-header-left h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      line-height: 1.4;
+    }
+
+    .chart-header-left span.badge {
+      font-size: 0.7rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-gold);
+      background-color: rgba(170,120,49,0.12);
+      border: 1px solid rgba(170,120,49,0.4);
+      border-radius: 999px;
+      padding: 0.2rem 0.5rem;
+    }
+
+    .chart-header-desc {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .therapist-badge {
+      font-size: 0.75rem;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.8);
+      background-color: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 0.5rem;
+      padding: 0.4rem 0.6rem;
+    }
+
+    footer {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.4);
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    canvas {
+      width: 100% !important;
+      max-height: 420px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <!-- LEFT SIDE: title + how to -->
+    <div class="left-stack">
+      <div class="title-block">
+        <h1>Villa Tokay · Spa Daily Dashboard</h1>
+        <p>
+          Upload the daily CSV. Then apply a date range filter.
+          The dashboard will recalculate KPIs, revenue trends,
+          guest mix, and staffing pressure.
+        </p>
+      </div>
+
+      <div class="howto-block">
+        <div class="howto-title">How to update this dashboard</div>
+        <ol>
+          <li>
+            Go to
+            <a href="https://docs.google.com/spreadsheets/d/1rIiIET77KARE0x-uV92TbZdSwCu0pkVO0ufKpfqm6Gw/edit?gid=22670161#gid=22670161"
+               target="_blank" rel="noopener noreferrer">
+              this Google Sheet
+            </a>.
+          </li>
+          <li>Open the sheet named “SPA”.</li>
+          <li>Export that sheet as CSV.</li>
+          <li>Upload the CSV below.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE: controls (file + date filters) -->
+    <div class="controls-block">
+      <div>
+        <div class="controls-section-label">CSV Input</div>
+        <div class="upload-row">
+          <input type="file" id="csvFile" accept=".csv" />
+        </div>
+        <div class="small-hint">
+          CSV must include columns:<br/>
+          “Date” and “Occupancy &amp; Revenue”<br/><br/>
+          With lines like:<br/>
+          “# Total people: X”<br/>
+          “# external: Y”<br/>
+          “# External Therapist: Z”<br/>
+          “Daily Revenue: NNN”
+        </div>
+      </div>
+
+      <div>
+        <div class="controls-section-label">Date Range</div>
+        <div class="date-row">
+          <div style="display:flex; flex-direction:column;">
+            <label for="startDate" style="font-size:0.7rem; color:rgba(255,255,255,0.7);">Start</label>
+            <input type="date" id="startDate" />
+          </div>
+          <div style="display:flex; flex-direction:column;">
+            <label for="endDate" style="font-size:0.7rem; color:rgba(255,255,255,0.7);">End</label>
+            <input type="date" id="endDate" />
+          </div>
+        </div>
+        <div class="small-hint">
+          Adjust dates to zoom in. All KPIs & charts update automatically.
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats cards -->
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Average Daily Revenue</div>
+      <div class="stat-value" id="avgRevenue">–</div>
+      <div class="stat-hint">IDR per day (current range)</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Peak Revenue Day</div>
+      <div class="stat-value" id="peakRevenue">–</div>
+      <div class="stat-hint" id="peakRevenueDate">–</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Peak People Day</div>
+      <div class="stat-value" id="peakPeople">–</div>
+      <div class="stat-hint" id="peakPeopleDate">–</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Last 7 Days Snapshot</div>
+      <div class="stat-value" id="last7Summary">–</div>
+      <div class="stat-hint" id="last7Details">
+        People / Revenue / ARP / Guests per day
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Average Revenue per Person (ARP)</div>
+      <div class="stat-value" id="arpOverall">–</div>
+      <div class="stat-hint" id="arp7day">–</div>
+    </div>
+  </section>
+
+  <!-- Main revenue chart -->
+  <section class="chart-card">
+    <div class="chart-header">
+      <div class="chart-header-left">
+        <h2>
+          Revenue
+          <span class="badge">Performance</span>
+        </h2>
+        <p class="chart-header-desc">
+          Gold bars = Daily Revenue (IDR)<br/>
+          Gold line = 7-day Avg Revenue (IDR)<br/>
+          Black line = Average Revenue (IDR)
+        </p>
+      </div>
+    </div>
+    <canvas id="mainChart"></canvas>
+  </section>
+
+  <!-- Revenue per person chart -->
+  <section class="chart-card">
+    <div class="chart-header">
+      <div class="chart-header-left">
+        <h2>
+          Revenue per Person
+          <span class="badge">ARP</span>
+        </h2>
+        <p class="chart-header-desc">
+          Gold bars = Revenue per Person (IDR/pax)<br/>
+          Gold line = 7-day Avg Revenue per Person (IDR/pax)<br/>
+          Black line = Average Revenue per Person (IDR/pax)
+        </p>
+      </div>
+    </div>
+    <canvas id="arpChart"></canvas>
+  </section>
+
+  <!-- Guest mix chart -->
+  <section class="chart-card">
+    <div class="chart-header">
+      <div class="chart-header-left">
+        <h2>
+          Internal vs External Guests
+          <span class="badge">Guest Mix</span>
+        </h2>
+        <p class="chart-header-desc">
+          Stacked bars = Internal (Villa Tokay guests) vs External (walk-ins / outside).<br/>
+          Line = % External (right axis).
+        </p>
+      </div>
+    </div>
+    <canvas id="mixChart"></canvas>
+  </section>
+
+  <!-- External therapist chart -->
+  <section class="chart-card">
+    <div class="chart-header">
+      <div class="chart-header-left">
+        <h2>
+          Staffing Pressure
+          <span class="badge">External Therapists</span>
+        </h2>
+        <p class="chart-header-desc">
+          Bars = number of external therapists brought in that day.
+          Higher bars = we needed backup beyond in-house capacity.
+        </p>
+      </div>
+      <div class="therapist-badge" id="therapistSummary">Last 7 days: –</div>
+    </div>
+    <canvas id="therapistChart"></canvas>
+  </section>
+
+  <footer>
+    Villa Tokay · Internal dashboard · Spa performance
+  </footer>
+
+  <script>
+    // ----------------- Utilities -----------------
+
+    function formatIDR(x) {
+      if (x === null || x === undefined || isNaN(x)) return "–";
+      return new Intl.NumberFormat("en-US").format(Math.round(x));
+    }
+
+    // build YYYY-MM-DD string with zero padding from y,m,d ints
+    function buildDateLabel(y, m, d) {
+      const mm = String(m).padStart(2, "0");
+      const dd = String(d).padStart(2, "0");
+      return `${y}-${mm}-${dd}`;
+    }
+
+    // ----------------- Parsing -----------------
+
+    function parseOccupancyAndRevenue(block) {
+      const lines = String(block || "")
+        .split(/\r?\n/)
+        .map(l => l.trim());
+
+      let totalPeople = null;
+      let externalPeople = null;
+      let externalTherapists = null;
+      let revenue = null;
+
+      for (const line of lines) {
+        const mTotal = line.match(/total\s*people\s*:\s*([\d]+)/i);
+        if (mTotal) {
+          totalPeople = parseInt(mTotal[1], 10);
+          continue;
+        }
+
+        // external guests (not therapists)
+        const mExt = line.match(/#?\s*external\s*:\s*([\d]+)/i);
+        if (mExt && !/therap/i.test(line)) {
+          externalPeople = parseInt(mExt[1], 10);
+          continue;
+        }
+
+        // external therapists
+        const mTher = line.match(/external\s*therapist\s*:\s*([\d]+)/i);
+        if (mTher) {
+          externalTherapists = parseInt(mTher[1], 10);
+          continue;
+        }
+
+        // revenue
+        const mRev = line.match(/daily\s*revenue\s*:\s*([\d\.,]*)/i);
+        if (mRev) {
+          let raw = mRev[1] || "";
+          if (raw.trim() === "") {
+            revenue = 0;
+          } else {
+            raw = raw.replace(/\./g, "").replace(/,/g, ".");
+            const num = parseFloat(raw);
+            revenue = isNaN(num) ? 0 : num;
+          }
+          continue;
+        }
+      }
+
+      if (totalPeople === null) totalPeople = 0;
+      if (externalPeople === null) externalPeople = 0;
+      if (externalTherapists === null) externalTherapists = 0;
+      if (revenue === null) revenue = 0;
+
+      const internalPeople = Math.max(totalPeople - externalPeople, 0);
+
+      return {
+        totalPeople,
+        internalPeople,
+        externalPeople,
+        externalTherapists,
+        revenue
+      };
+    }
+
+    function parseCSV(text) {
+      const rows = [];
+      let cur = [];
+      let val = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i + 1];
+
+        if (inQuotes) {
+          if (c === '"' && next === '"') {
+            val += '"';
+            i++;
+          } else if (c === '"') {
+            inQuotes = false;
+          } else {
+            val += c;
+          }
+        } else {
+          if (c === '"') {
+            inQuotes = true;
+          } else if (c === ",") {
+            cur.push(val);
+            val = "";
+          } else if (c === "\n" || c === "\r") {
+            if (c === "\r" && next === "\n") {
+              i++;
+            }
+            cur.push(val);
+            rows.push(cur);
+            cur = [];
+            val = "";
+          } else {
+            val += c;
+          }
+        }
+      }
+      if (val.length > 0 || inQuotes || cur.length > 0) {
+        cur.push(val);
+        rows.push(cur);
+      }
+
+      return rows;
+    }
+
+    function csvToObjects(rows) {
+      if (!rows || rows.length === 0) return [];
+      const headers = rows[0].map(h => h.trim());
+      return rows.slice(1).map(r => {
+        const obj = {};
+        headers.forEach((h, idx) => {
+          obj[h] = r[idx] !== undefined ? r[idx] : "";
+        });
+        return obj;
+      });
+    }
+
+    // Parse a date string from the CSV and return { y, m, d, dateLabel }
+    // Supports:
+    //  - "MM/DD/YYYY"
+    //  - "YYYY-MM-DD"
+    //  - other formats parsed by Date(...) as last resort
+    function parseDateFromCSV(dateRaw) {
+      let y, m, d;
+
+      // Try MM/DD/YYYY
+      const mdy = String(dateRaw).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (mdy) {
+        m = parseInt(mdy[1], 10);
+        d = parseInt(mdy[2], 10);
+        y = parseInt(mdy[3], 10);
+        return { y, m, d, dateLabel: buildDateLabel(y, m, d) };
+      }
+
+      // Try YYYY-MM-DD
+      const ymd = String(dateRaw).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (ymd) {
+        y = parseInt(ymd[1], 10);
+        m = parseInt(ymd[2], 10);
+        d = parseInt(ymd[3], 10);
+        return { y, m, d, dateLabel: buildDateLabel(y, m, d) };
+      }
+
+      // Fallback: Date(...)
+      const fallback = new Date(dateRaw);
+      if (!isNaN(fallback.getTime())) {
+        y = fallback.getFullYear();
+        m = fallback.getMonth() + 1;
+        d = fallback.getDate();
+        return { y, m, d, dateLabel: buildDateLabel(y, m, d) };
+      }
+
+      // If totally unparseable:
+      return null;
+    }
+
+    function buildDataPoints(csvObjects) {
+      const points = [];
+      for (const row of csvObjects) {
+        const rawDate = row["Date"];
+        const block = row["Occupancy & Revenue"];
+        if (!rawDate || !block) continue;
+
+        const parsedDateBits = parseDateFromCSV(rawDate);
+        if (!parsedDateBits) continue;
+
+        const { y, m, d, dateLabel } = parsedDateBits;
+
+        // We keep a JS Date only for chronological sorting, constructed explicitly in local terms:
+        // Use new Date(y, m-1, d) so it's consistent and doesn't depend on input string timezone.
+        const dateObj = new Date(y, m - 1, d, 0, 0, 0, 0);
+
+        const parsed = parseOccupancyAndRevenue(block);
+
+        points.push({
+          dateObj,
+          dateLabel, // stable "YYYY-MM-DD"
+          totalPeople: parsed.totalPeople,
+          internalPeople: parsed.internalPeople,
+          externalPeople: parsed.externalPeople,
+          externalTherapists: parsed.externalTherapists,
+          revenue: parsed.revenue
+        });
+      }
+
+      // sort ascending by actual calendar order
+      points.sort((a,b) => a.dateObj - b.dateObj);
+      return points;
+    }
+
+    // rolling 7-day averages for revenue & people (on filtered slice)
+    function addRolling7Day(points) {
+      for (let i = 0; i < points.length; i++) {
+        const start = Math.max(0, i - 6);
+        const windowSlice = points.slice(start, i + 1);
+
+        const revSum = windowSlice.reduce((acc,p) => acc + p.revenue, 0);
+        const pplSum = windowSlice.reduce((acc,p) => acc + p.totalPeople, 0);
+
+        points[i].revMA7 = windowSlice.length ? revSum / windowSlice.length : 0;
+        points[i].peopleMA7 = windowSlice.length ? pplSum / windowSlice.length : 0;
+      }
+      return points;
+    }
+
+    // ARP (revenue per person) and 7-day ARP rolling (on filtered slice)
+    function addARP(points) {
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        p.arp = p.totalPeople > 0 ? (p.revenue / p.totalPeople) : 0;
+
+        const start = Math.max(0, i - 6);
+        const windowSlice = points.slice(start, i + 1);
+
+        const totalRev7 = windowSlice.reduce((acc,x)=> acc + x.revenue, 0);
+        const totalPeople7 = windowSlice.reduce((acc,x)=> acc + x.totalPeople, 0);
+        p.arpMA7 = totalPeople7 > 0 ? (totalRev7 / totalPeople7) : 0;
+      }
+      return points;
+    }
+
+    function calcGlobalMetrics(points) {
+      if (!points.length) {
+        return {
+          avgRevenue: 0,
+          peakRevenue: 0,
+          peakRevenueDate: "–",
+          peakPeople: 0,
+          peakPeopleDate: "–",
+          arpOverall: 0
+        };
+      }
+
+      const totalRev = points.reduce((acc,p)=> acc + p.revenue, 0);
+      const avgDailyRev = totalRev / points.length;
+
+      const peakRevPoint = points.reduce(
+        (best,p)=> p.revenue>best.revenue? p:best,
+        points[0]
+      );
+      const peakPeoplePoint = points.reduce(
+        (best,p)=> p.totalPeople>best.totalPeople? p:best,
+        points[0]
+      );
+
+      const totalPeopleAll = points.reduce((acc,p)=> acc + p.totalPeople, 0);
+      const arpOverall = totalPeopleAll > 0
+        ? (totalRev / totalPeopleAll)
+        : 0;
+
+      return {
+        avgRevenue: avgDailyRev,
+        peakRevenue: peakRevPoint.revenue,
+        peakRevenueDate: peakRevPoint.dateLabel,
+        peakPeople: peakPeoplePoint.totalPeople,
+        peakPeopleDate: peakPeoplePoint.dateLabel,
+        arpOverall
+      };
+    }
+
+    // last 7 rows of the filtered slice
+    function calcLast7(points) {
+      if (!points.length) {
+        return {
+          totalPeople7: 0,
+          totalRev7: 0,
+          arp7: 0,
+          avgGuestsPerDay7: 0,
+          therapistDays7: 0,
+          last7Count: 0
+        };
+      }
+
+      const last7 = points.slice(-7);
+
+      const totalPeople7 = last7.reduce((acc,p)=> acc + p.totalPeople, 0);
+      const totalRev7 = last7.reduce((acc,p)=> acc + p.revenue, 0);
+      const arp7 = totalPeople7 > 0 ? (totalRev7 / totalPeople7) : 0;
+      const avgGuestsPerDay7 = last7.length ? totalPeople7 / last7.length : 0;
+      const therapistDays7 = last7.filter(p => p.externalTherapists > 0).length;
+
+      return {
+        totalPeople7,
+        totalRev7,
+        arp7,
+        avgGuestsPerDay7,
+        therapistDays7,
+        last7Count: last7.length
+      };
+    }
+
+    // ----------------- Cards update -----------------
+
+    function updateCards(globalMetrics, last7Metrics) {
+      document.getElementById("avgRevenue").textContent =
+        formatIDR(globalMetrics.avgRevenue);
+
+      document.getElementById("peakRevenue").textContent =
+        formatIDR(globalMetrics.peakRevenue);
+      document.getElementById("peakRevenueDate").textContent =
+        globalMetrics.peakRevenueDate;
+
+      document.getElementById("peakPeople").textContent =
+        globalMetrics.peakPeople;
+      document.getElementById("peakPeopleDate").textContent =
+        globalMetrics.peakPeopleDate;
+
+      document.getElementById("last7Summary").textContent =
+        `${last7Metrics.last7Count} days · ${formatIDR(last7Metrics.totalRev7)} IDR`;
+      document.getElementById("last7Details").textContent =
+        `People: ${last7Metrics.totalPeople7} · ARP: ${formatIDR(last7Metrics.arp7)} IDR/pax · Avg pax/day: ${Math.round(last7Metrics.avgGuestsPerDay7 || 0)}`;
+
+      document.getElementById("arpOverall").textContent =
+        formatIDR(globalMetrics.arpOverall) + " IDR/pax";
+      document.getElementById("arp7day").textContent =
+        "Last 7 days: " + formatIDR(last7Metrics.arp7) + " IDR/pax";
+
+      const therapistBadge = document.getElementById("therapistSummary");
+      therapistBadge.textContent =
+        `Last 7 days: external therapist on ${last7Metrics.therapistDays7}/${last7Metrics.last7Count} days`;
+    }
+
+    // ----------------- Charts -----------------
+
+    let mainChartRef = null;
+    let arpChartRef = null;
+    let mixChartRef = null;
+    let therapistChartRef = null;
+
+    function renderMainChart(points, globalMetrics) {
+      const ctx = document.getElementById("mainChart").getContext("2d");
+
+      const labels = points.map(p => p.dateLabel);
+      const revenues = points.map(p => p.revenue);
+      const revMA7 = points.map(p => p.revMA7);
+      const avgLine = points.map(() => globalMetrics.avgRevenue);
+
+      if (mainChartRef) mainChartRef.destroy();
+
+      mainChartRef = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Daily Revenue (IDR)',
+              data: revenues,
+              backgroundColor: 'rgba(170,120,49,0.5)',
+              borderColor: 'rgba(170,120,49,0.9)',
+              borderWidth: 1
+            },
+            {
+              type: 'line',
+              label: '7-day Avg Revenue (IDR)',
+              data: revMA7,
+              borderColor: 'rgba(170,120,49,0.9)',
+              backgroundColor: 'rgba(170,120,49,0.9)',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0.2
+            },
+            {
+              type: 'line',
+              label: 'Average Revenue (IDR)',
+              data: avgLine,
+              borderColor: '#000000',
+              backgroundColor: '#000000',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: "#fff", font: { size: 11 } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: 'rgba(255,255,255,0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (ctx) =>
+                  `${ctx.dataset.label}: ${formatIDR(ctx.raw)} IDR`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#fff", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,0.07)" }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: "#fff",
+                font: { size: 10 },
+                callback: (value) => formatIDR(value)
+              },
+              grid: { color: "rgba(255,255,255,0.07)" },
+              title: {
+                display: true,
+                text: 'Revenue (IDR)',
+                color: "#fff",
+                font: { size: 11, weight: '500' }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderARPChart(points, globalMetrics) {
+      const ctx = document.getElementById("arpChart").getContext("2d");
+
+      const labels = points.map(p => p.dateLabel);
+      const arpVals = points.map(p => p.arp);
+      const arpMA7Vals = points.map(p => p.arpMA7);
+      const arpAvgLine = points.map(() => globalMetrics.arpOverall);
+
+      if (arpChartRef) arpChartRef.destroy();
+
+      arpChartRef = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Revenue per Person (IDR/pax)',
+              data: arpVals,
+              backgroundColor: 'rgba(170,120,49,0.5)',
+              borderColor: 'rgba(170,120,49,0.9)',
+              borderWidth: 1
+            },
+            {
+              type: 'line',
+              label: '7-day Avg Revenue per Person (IDR/pax)',
+              data: arpMA7Vals,
+              borderColor: 'rgba(170,120,49,0.9)',
+              backgroundColor: 'rgba(170,120,49,0.9)',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0.2
+            },
+            {
+              type: 'line',
+              label: 'Average Revenue per Person (IDR/pax)',
+              data: arpAvgLine,
+              borderColor: '#000000',
+              backgroundColor: '#000000',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: "#fff", font: { size: 11 } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: 'rgba(255,255,255,0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (ctx) =>
+                  `${ctx.dataset.label}: ${formatIDR(ctx.raw)} IDR/pax`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#fff", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,0.07)" }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: "#fff",
+                font: { size: 10 },
+                callback: (value) => formatIDR(value)
+              },
+              grid: { color: "rgba(255,255,255,0.07)" },
+              title: {
+                display: true,
+                text: 'Revenue per Person (IDR/pax)',
+                color: "#fff",
+                font: { size: 11, weight: '500' }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderMixChart(points) {
+      const ctx = document.getElementById("mixChart").getContext("2d");
+
+      const labels = points.map(p => p.dateLabel);
+      const internalSeries = points.map(p => p.internalPeople);
+      const externalSeries = points.map(p => p.externalPeople);
+      const pctExternal = points.map(p => {
+        const total = p.totalPeople || 1;
+        return (p.externalPeople / total) * 100;
+      });
+
+      if (mixChartRef) mixChartRef.destroy();
+
+      mixChartRef = new Chart(ctx, {
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Internal Guests',
+              data: internalSeries,
+              yAxisID: 'yGuests',
+              backgroundColor: 'rgba(0,255,170,0.3)',
+              borderColor: 'rgba(0,255,170,0.6)',
+              borderWidth: 1,
+              stack: 'guestmix'
+            },
+            {
+              type: 'bar',
+              label: 'External Guests',
+              data: externalSeries,
+              yAxisID: 'yGuests',
+              backgroundColor: 'rgba(255,255,0,0.3)',
+              borderColor: 'rgba(255,255,0,0.6)',
+              borderWidth: 1,
+              stack: 'guestmix'
+            },
+            {
+              type: 'line',
+              label: '% External',
+              data: pctExternal,
+              yAxisID: 'yPct',
+              borderColor: 'rgba(255,255,255,0.8)',
+              backgroundColor: 'rgba(255,255,255,0.8)',
+              borderWidth: 2,
+              pointRadius: 2,
+              fill: false,
+              tension: 0.2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: "#fff", font: { size: 11 } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: 'rgba(255,255,255,0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (ctx) => {
+                  const lbl = ctx.dataset.label || "";
+                  if (lbl.includes('%')) {
+                    return lbl + ": " + ctx.raw.toFixed(1) + "%";
+                  }
+                  return lbl + ": " + Math.round(ctx.raw);
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              ticks: { color: "#fff", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,0.07)" }
+            },
+            yGuests: {
+              position: 'left',
+              stacked: true,
+              ticks: { color: "#fff", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,0.07)" },
+              title: {
+                display: true,
+                text: 'Guests (count)',
+                color: "#fff",
+                font: { size: 11, weight: '500' }
+              }
+            },
+            yPct: {
+              position: 'right',
+              ticks: {
+                color: "#fff",
+                font: { size: 10 },
+                callback: (v)=> v.toFixed(0) + "%"
+              },
+              grid: { drawOnChartArea: false },
+              title: {
+                display: true,
+                text: '% External',
+                color: "#fff",
+                font: { size: 11, weight: '500' }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderTherapistChart(points) {
+      const ctx = document.getElementById("therapistChart").getContext("2d");
+
+      const labels = points.map(p => p.dateLabel);
+      const extTherSeries = points.map(p => p.externalTherapists);
+
+      if (therapistChartRef) therapistChartRef.destroy();
+
+      therapistChartRef = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'External Therapists (count)',
+              data: extTherSeries,
+              backgroundColor: 'rgba(255,0,0,0.3)',
+              borderColor: 'rgba(255,0,0,0.6)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: "#fff", font: { size: 11 } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: 'rgba(255,255,255,0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (ctx) =>
+                  "External therapists: " + ctx.raw
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#fff", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,0.07)" }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: "#fff", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,0.07)" },
+              title: {
+                display: true,
+                text: 'External Therapists (count)',
+                color: "#fff",
+                font: { size: 11, weight: '500' }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ----------------- Filtering logic -----------------
+
+    let allPoints = []; // full dataset after upload
+
+    function applyDateFilter() {
+      if (!allPoints.length) return;
+
+      const startVal = document.getElementById("startDate").value;
+      const endVal = document.getElementById("endDate").value;
+
+      let filtered = allPoints.slice();
+
+      if (startVal) {
+        filtered = filtered.filter(p => p.dateLabel >= startVal);
+      }
+      if (endVal) {
+        filtered = filtered.filter(p => p.dateLabel <= endVal);
+      }
+
+      // recompute rolling metrics / ARP on the filtered slice itself
+      filtered = addRolling7Day(filtered.slice());
+      filtered = addARP(filtered);
+
+      const globalMetrics = calcGlobalMetrics(filtered);
+      const last7Metrics = calcLast7(filtered);
+
+      updateCards(globalMetrics, last7Metrics);
+      renderMainChart(filtered, globalMetrics);
+      renderARPChart(filtered, globalMetrics);
+      renderMixChart(filtered);
+      renderTherapistChart(filtered);
+
+      // update therapist summary badge text again (it gets set in updateCards,
+      // but we keep this for clarity — safe redundancy)
+      const therapistBadge = document.getElementById("therapistSummary");
+      therapistBadge.textContent =
+        `Last 7 days: external therapist on ${last7Metrics.therapistDays7}/${last7Metrics.last7Count} days`;
+    }
+
+    // ----------------- File upload handler -----------------
+
+    document.getElementById("csvFile").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const text = await file.text();
+      const rows = parseCSV(text);
+      const objs = csvToObjects(rows);
+
+      allPoints = buildDataPoints(objs);
+
+      // set date pickers min/max and clear current values
+      if (allPoints.length) {
+        const minDate = allPoints[0].dateLabel;
+        const maxDate = allPoints[allPoints.length - 1].dateLabel;
+
+        const startInput = document.getElementById("startDate");
+        const endInput = document.getElementById("endDate");
+
+        startInput.min = minDate;
+        startInput.max = maxDate;
+        endInput.min = minDate;
+        endInput.max = maxDate;
+
+        startInput.value = "";
+        endInput.value = "";
+      }
+
+      applyDateFilter();
+    });
+
+    // re-filter when user changes dates
+    document.getElementById("startDate").addEventListener("change", applyDateFilter);
+    document.getElementById("endDate").addEventListener("change", applyDateFilter);
+  </script>
+</body>
+</html>
